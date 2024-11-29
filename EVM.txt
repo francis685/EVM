@@ -1,0 +1,96 @@
+void setup() {
+  // put your setup code here, to run once:
+
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+
+}
+#include <SPI.h> // Include SPI library (for communication with the RFID reader)
+#include <MFRC522.h> // Include the MFRC522 RFID library
+
+#define RST_PIN 9 // Reset pin for the RFID module
+#define SS_PIN 10 // Slave select (chip select) pin for the RFID module
+
+#define RELAY_PIN 7 // Relay control pin (example pin, change as needed)
+
+MFRC522 rfid(SS_PIN, RST_PIN); // Create an instance of the MFRC522 class
+
+String cardID = ""; // Declare cardID as a String to store the RFID card ID
+
+void setup() {
+  Serial.begin(9600); // Initialize serial communication
+  SPI.begin(); // Start the SPI bus
+  rfid.PCD_Init(); // Initialize the RFID reader
+  pinMode(RELAY_PIN, OUTPUT); // Set the relay pin as an output
+}
+
+void loop() {
+  // Look for new RFID cards
+  if (rfid.PICC_IsNewCardPresent()) {
+    if (rfid.PICC_ReadCardSerial()) {
+      
+      cardID = ""; // Reset cardID string for each new card
+      for (byte i = 0; i < rfid.uid.size; i++) {
+        cardID += String(rfid.uid.uidByte[i] < 0x10 ? "0" : ""); // Add leading zero if necessary
+        cardID += String(rfid.uid.uidByte[i], HEX); // Append byte in HEX format
+      }
+
+      Serial.println(cardID); // Print the card ID stored in the string
+
+      // Check if the cardID matches any of the predefined IDs
+      if (cardID == "43a20d2e" || cardID == "a1c79100" || cardID == "c9d19100" || 
+          cardID == "73f09100" || cardID == "734d6030" || cardID == "f31df106") {
+        digitalWrite(RELAY_PIN, HIGH); // Activate relay or lock
+        beep(1); // Beep once
+        delay(3000); // Wait for 3 seconds
+        digitalWrite(RELAY_PIN, LOW); // Deactivate relay or lock
+        markAttendance(cardID); // Mark attendance offline
+      } else {
+        Serial.println("Access Denied");
+        beep(2); // Beep twice
+      }
+
+      // Halt PICC and stop encryption on PCD (RFID reader)
+      rfid.PICC_HaltA();
+      rfid.PCD_StopCrypto1();
+    }
+  }
+
+  // Check if serial data is available for special commands
+  if (Serial.available()) {
+    String receivedData = Serial.readStringUntil('\n'); // Read the entire string
+
+    Serial.print("Received: ");
+    Serial.println(receivedData);
+
+    // Check for specific string to open access
+    if (receivedData == "arc@123") {
+      digitalWrite(RELAY_PIN, HIGH); // Activate relay or lock
+      beep(1); // Beep once
+      delay(3000); // Wait for 3 seconds
+      digitalWrite(RELAY_PIN, LOW); // Deactivate relay or lock
+    } else {
+      beep(2); // Beep twice for invalid input
+      Serial.print("Invalid input: ");
+      Serial.println(receivedData);
+    }
+  }
+}
+
+// Function to generate a beep (example, adjust as needed)
+void beep(int times) {
+  for (int i = 0; i < times; i++) {
+    tone(8, 1000, 200); // Beep on pin 8, frequency 1000Hz, duration 200ms
+    delay(200); // Short delay between beeps
+  }
+}
+
+// Function to mark attendance (example, adjust as needed)
+void markAttendance(String cardID) {
+  // Example of marking attendance
+  // You can save the cardID to an SD card, send it to a server, etc.
+  Serial.print("Attendance marked for card ID: ");
+  Serial.println(cardID);
+}
